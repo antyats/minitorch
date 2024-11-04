@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Any, Iterable, List, Tuple
+from collections import defaultdict
 
+from llvmlite.binding import ValueRef
 from typing_extensions import Protocol
 
 # ## Task 1.1
@@ -22,12 +24,14 @@ def central_difference(f: Any, *vals: Any, arg: int = 0, epsilon: float = 1e-6) 
     Returns:
         An approximation of $f'_i(x_0, \ldots, x_{n-1})$
     """
-    # TODO: Implement for Task 1.1.
-    raise NotImplementedError('Need to implement for Task 1.1')
+    next_vals = []
+    for i in range(len(vals)):
+        if i == arg: next_vals.append(vals[i] + epsilon)
+        else: next_vals.append(vals[i])
 
+    return (f(*next_vals) - f(*vals)) / epsilon
 
 variable_count = 1
-
 
 class Variable(Protocol):
     def accumulate_derivative(self, x: Any) -> None:
@@ -61,8 +65,28 @@ def topological_sort(variable: Variable) -> Iterable[Variable]:
     Returns:
         Non-constant Variables in topological order starting from the right.
     """
-    # TODO: Implement for Task 1.4.
-    raise NotImplementedError('Need to implement for Task 1.4')
+    # algos on 2 course
+
+    all_nodes = []
+    visited = set()
+
+    def dfs(node: Variable):
+        if node.unique_id in visited:
+            return
+
+        if node.is_constant():
+            return
+
+        if not node.is_leaf():
+            for parent in node.parents:
+                if not parent.is_constant():
+                    dfs(parent)
+
+        visited.add(node.unique_id)
+        all_nodes.append(node)
+
+    dfs(variable)
+    return all_nodes[::-1]
 
 
 def backpropagate(variable: Variable, deriv: Any) -> None:
@@ -76,8 +100,17 @@ def backpropagate(variable: Variable, deriv: Any) -> None:
 
     No return. Should write to its results to the derivative values of each leaf through `accumulate_derivative`.
     """
-    # TODO: Implement for Task 1.4.
-    raise NotImplementedError('Need to implement for Task 1.4')
+    topsort = topological_sort(variable)
+
+    ders = defaultdict(float)
+    ders[variable.unique_id] = deriv
+
+    for node in topsort:
+        if node.is_leaf():
+            node.accumulate_derivative(ders[node.unique_id])
+        else:
+            for parent, der in node.chain_rule(ders[node.unique_id]):
+                ders[parent.unique_id] += der
 
 
 @dataclass
